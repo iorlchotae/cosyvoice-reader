@@ -1,0 +1,59 @@
+# ─────────────────────────────────────────────
+#  模型权重与上游源码（约 10 GB + 上游仓库）
+#  本仓库只放"有声书生产线"的代码，模型按需下载
+# ─────────────────────────────────────────────
+models/
+CosyVoice/
+_probe_ms/
+_probe.wav
+
+# ─────────────────────────────────────────────
+#  本机运行时数据
+# ─────────────────────────────────────────────
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.tmp/
+outputs/
+logs/
+tasks/
+settings.json
+
+# ─────────────────────────────────────────────
+#  声音档案（含个人音色，仅保留公开预置）
+# ─────────────────────────────────────────────
+voice_profiles/*
+!voice_profiles/presets/
+!voice_profiles/presets.json
+voice_profiles/presets/sample_female.wav
+
+# ─────────────────────────────────────────────
+#  日志 / 临时文件
+# ─────────────────────────────────────────────
+*.log
+test_input.txt
+
+# ─────────────────────────────────────────────
+#  开发期一次性脚本与预览稿
+# ─────────────────────────────────────────────
+ui_preview_*.html
+scripts/_ferry_*.py
+scripts/_pack_verify.py
+scripts/_export_trt.py
+scripts/_rtf_trt_test.py
+scripts/make_reproduce_pack.py
+scripts/fix_long_voice_profiles.py
+scripts/fetch_model_ms.py
+
+# ─────────────────────────────────────────────
+#  已被 README 取代的旧文档（本地保留，不入库）
+# ─────────────────────────────────────────────
+DEPLOYMENT_WINDOWS.md
+
+# ─────────────────────────────────────────────
+#  系统
+# ─────────────────────────────────────────────
+Thumbs.db
+desktop.ini
+.DS_Store

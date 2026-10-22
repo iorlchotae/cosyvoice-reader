@@ -1,0 +1,15 @@
+CosyVoice Reader
+Copyright 2026 iorlchotae
+
+本仓库的"有声书生产线"代码（app.py / index.html / backends/ / *.py / scripts/）
+由 iorlchotae 编写，以 Apache License 2.0 授权。
+
+This product includes software developed by FunAudioLLM
+(https://github.com/FunAudioLLM/CosyVoice), licensed under the
+Apache License, Version 2.0.
+
+运行时按需下载的模型权重 Fun-CosyVoice3-0.5B-2512 由 FunAudioLLM 发布，
+遵循其各自的模型许可；模型不包含在本仓库中。
+
+voice_profiles/presets/ 下的预置参考音频取自上述上游仓库的示例素材，
+仅用于演示零样本音色克隆；实际使用请替换为你自己的录音。

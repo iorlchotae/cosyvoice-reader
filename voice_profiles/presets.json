@@ -1,0 +1,17 @@
+{
+  "官方·温柔女声": {
+    "wav": "voice_profiles/presets/official_female.wav",
+    "txt": "希望你以后能够做的比我还好呦。",
+    "desc": "CosyVoice 官方示例音色（女声，零样本克隆标准样本）"
+  },
+  "官方·沉稳叙述": {
+    "wav": "voice_profiles/presets/official_cross.wav",
+    "txt": "在那之后完全收购那家公司，因此保持管理层的一致性，利益与即将加入家族的资产保持一致，这就是我们有时不买下全部的原因。",
+    "desc": "CosyVoice 官方跨语言示例音色（叙述感，约 6 秒）"
+  },
+  "示例·明亮女声": {
+    "wav": "voice_profiles/presets/sample_female.wav",
+    "txt": "如果不是遭遇美国制裁，也不会有今天的小米苏七，我真的还要从头再干一遍吗，万一输了呢。",
+    "desc": "公开教程示例音色（女声，9 秒，带口语感）"
+  }
+}

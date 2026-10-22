@@ -1,0 +1,1497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CosyVoice Reader · 小说转有声书工具</title>
+<style>
+  :root{
+    --bg:#fbfbfc;
+    --rail:#f4f4f5;
+    --card:#ffffff;
+    --line:#e6e6e9;
+    --line-soft:#f0f0f2;
+    --ink:#18181b;
+    --ink-2:#3f3f46;
+    --muted:#71717a;
+    --faint:#a1a1aa;
+    --accent:#2563eb;
+    --accent-soft:#eff4ff;
+    --ok:#15803d;
+    --ok-soft:#ecfdf3;
+    --bad:#b91c1c;
+    --bad-soft:#fef2f2;
+    --warn:#a16207;
+    --warn-soft:#fefce8;
+    --radius:14px;
+    --radius-lg:18px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:"Microsoft YaHei UI","Microsoft YaHei","PingFang SC","Segoe UI",system-ui,-apple-system,sans-serif;
+    font-size:15px; line-height:1.55; color:var(--ink); background:var(--bg);
+    -webkit-font-smoothing:antialiased;
+  }
+  button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+  button{cursor:pointer}
+  a{color:var(--accent)}
+
+  /* ── 两栏骨架：左侧栏 + 主工作区 ───────────────────────────── */
+  /* 左栏跟着视口走：窄屏 340px 起步，宽屏按 24vw 长，最多 440px。
+     以前写死 296px，一到 1920/2560 全屏就细成一条，和右边不成比例。 */
+  .shell{display:grid;grid-template-columns:clamp(340px,25vw,500px) minmax(0,1fr);min-height:100vh}
+  .rail{
+    background:var(--rail); border-right:1px solid var(--line);
+    padding:26px 22px 34px; position:sticky; top:0; height:100vh; overflow-y:auto;
+  }
+  .rail::-webkit-scrollbar,.main::-webkit-scrollbar{width:10px}
+  .rail::-webkit-scrollbar-thumb,.main::-webkit-scrollbar-thumb{background:#d7d7db;border-radius:6px;border:3px solid transparent;background-clip:content-box}
+  .main{padding:26px 34px 44px;min-width:0}
+  .wrap{max-width:1700px;margin:0 auto}
+
+  /* ── 品牌区 ───────────────────────────────────────────────── */
+  .brand{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+  .mark{
+    width:46px;height:46px;border-radius:13px;background:#111114;color:#fff;
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;letter-spacing:.5px;
+  }
+  .brand-name{font-size:25px;font-weight:800;letter-spacing:-.3px;line-height:1.15}
+  .brand-name em{font-style:normal;color:var(--accent)}
+  .brand-sub{margin-top:10px;font-size:11px;letter-spacing:.16em;color:var(--faint);font-weight:700}
+  .brand-sub2{margin-top:3px;font-size:12.5px;color:var(--muted)}
+
+  .rail-label{
+    margin:26px 0 10px;font-size:11px;font-weight:700;letter-spacing:.15em;
+    color:var(--faint);text-transform:uppercase;
+  }
+
+  /* ── 系统状态卡 ───────────────────────────────────────────── */
+  .stats{display:flex;flex-direction:column;gap:9px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 13px}
+  .stat-k{font-size:12.5px;color:var(--muted);font-weight:600}
+  .stat-v{font-size:23px;font-weight:800;letter-spacing:-.5px;margin-top:1px}
+  .stat-m{font-size:12px;color:var(--faint);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bar{height:5px;border-radius:3px;background:#ececef;overflow:hidden;margin-top:7px}
+  .bar > i{display:block;height:100%;background:var(--accent);border-radius:3px;transition:width .5s ease}
+
+  /* ── 运行中 ──────────────────────────────────────────────── */
+  .run-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px}
+  .run-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+  .run-pct{font-size:24px;font-weight:800}
+  .run-file{font-size:13.5px;font-weight:700;margin-top:6px;word-break:break-all}
+  .run-meta{font-size:12px;color:var(--muted);margin-top:2px}
+  .kv{display:flex;justify-content:space-between;font-size:13px;margin-top:5px}
+  .kv b{font-weight:800}
+  .empty{font-size:12.5px;color:var(--faint);padding:6px 2px}
+
+  /* ── 音色行 ──────────────────────────────────────────────── */
+  .voice{
+    display:flex;align-items:center;gap:11px;background:var(--card);border:1px solid var(--line);
+    border-radius:12px;padding:9px 12px;margin-bottom:8px;transition:.15s;text-align:left;width:100%;
+  }
+  .voice:hover{border-color:#cfd6e6}
+  .voice.on{border-color:var(--accent);background:var(--accent-soft)}
+  .avatar{
+    width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;
+  }
+  .voice-name{font-weight:700;font-size:14.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tick{color:var(--accent);font-weight:800;display:none}
+  .voice.on .tick{display:block}
+  .play{
+    border:1px solid var(--line);background:#fff;width:28px;height:28px;border-radius:9px;
+    display:flex;align-items:center;justify-content:center;color:var(--ink-2);flex:0 0 auto;
+  }
+  .play:hover{border-color:var(--accent);color:var(--accent)}
+  .del{
+    border:none;background:transparent;color:var(--faint);font-size:16px;line-height:1;
+    padding:2px 4px;border-radius:6px;flex:0 0 auto;
+  }
+  .del:hover{background:var(--bad-soft);color:var(--bad)}
+
+  /* ── 主卡片 ──────────────────────────────────────────────── */
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);
+    box-shadow:0 1px 2px rgba(16,17,26,.04),0 8px 26px -18px rgba(16,17,26,.22);
+    padding:32px 36px 36px;
+  }
+  .hero{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:.2em;color:var(--faint)}
+  h1{margin:12px 0 0;font-size:38px;line-height:1.22;font-weight:800;letter-spacing:-.9px}
+  .lede{margin:12px 0 0;font-size:15.5px;color:var(--muted);max-width:640px}
+  .ready-pill{
+    flex:0 0 auto;border:1px solid var(--line);border-radius:12px;background:#fff;
+    padding:9px 14px;text-align:center;min-width:112px;
+  }
+  .ready-pill .k{display:block;font-size:10.5px;letter-spacing:.14em;color:var(--faint);font-weight:700}
+  .ready-pill .v{display:block;font-size:15px;font-weight:800;margin-top:2px;color:var(--accent)}
+  .ready-pill.bad .v{color:var(--bad)}
+  .ready-pill.load .v{color:var(--warn)}
+
+  /* ── 标签页 ──────────────────────────────────────────────── */
+  .tabs{display:flex;gap:26px;border-bottom:1px solid var(--line);margin:26px 0 0}
+  .tab{
+    border:none;background:transparent;padding:11px 2px 13px;font-size:15px;font-weight:700;
+    color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;
+  }
+  .tab:hover{color:var(--ink)}
+  .tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+  .panel{display:none;padding-top:26px}
+  .panel.on{display:block}
+
+  /* ── 区块 ────────────────────────────────────────────────── */
+  .sec{margin-bottom:24px}
+  .sec-title{font-size:17px;font-weight:800;letter-spacing:-.2px}
+  .sec-desc{font-size:13.5px;color:var(--muted);margin-top:5px}
+  .sec-head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+
+  .btn{
+    border:1px solid var(--line);background:#fff;border-radius:11px;
+    padding:10px 16px;font-size:14px;font-weight:700;color:var(--ink-2);transition:.15s;
+    display:inline-flex;align-items:center;gap:8px;
+  }
+  .btn:hover{border-color:#cbd5e1;background:#fafafa}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{background:#1d4ed8;border-color:#1d4ed8}
+  .btn.ghost{border-color:transparent;background:#f4f4f5}
+  .btn.ghost:hover{background:#e9e9ec}
+  .btn.lg{padding:14px 26px;font-size:15.5px;border-radius:12px}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+
+  /* ── 上传区 ──────────────────────────────────────────────── */
+  .drop{
+    border:1.5px dashed #d4d4d8;border-radius:var(--radius);background:#fcfcfd;
+    padding:38px 20px;text-align:center;transition:.15s;cursor:pointer;
+  }
+  .drop:hover{border-color:#b9c4dd;background:#fafbff}
+  .drop.over{border-color:var(--accent);background:var(--accent-soft)}
+  .drop svg{color:#a1a1aa}
+  .drop-t{margin-top:14px;font-size:16px;font-weight:700}
+  .drop-s{margin-top:5px;font-size:13px;color:var(--faint)}
+  .drop-or{font-size:13px;color:var(--faint);margin:7px 0}
+  .drop-btn{
+    display:inline-block;background:var(--accent);color:#fff;font-weight:700;
+    border-radius:11px;padding:10px 22px;font-size:14.5px;margin-top:4px;
+  }
+
+  .filelist{margin-top:14px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .filerow{display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid var(--line-soft);background:#fff}
+  .filerow:last-child{border-bottom:none}
+  .filerow .nm{flex:1;min-width:0;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chip{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:#f4f4f5;color:var(--muted)}
+  .chip.md{background:#eef6ff;color:#1d4ed8}
+
+  /* ── 表单 ────────────────────────────────────────────────── */
+  .grid3{display:grid;grid-template-columns:1.05fr 1.5fr .8fr;gap:18px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .field label{display:block;font-size:13px;font-weight:700;color:var(--ink-2);margin-bottom:7px}
+  .field .hint{font-size:12px;color:var(--faint);margin-top:6px}
+  input[type=text],select,textarea{
+    width:100%;border:1px solid var(--line);background:#fff;border-radius:11px;
+    padding:11px 13px;font-size:14px;outline:none;transition:.15s;
+  }
+  input[type=text]:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+  textarea{resize:vertical;min-height:84px;line-height:1.5}
+  input[type=range]{width:100%;accent-color:var(--accent);height:22px}
+  .range-head{display:flex;justify-content:space-between;align-items:baseline}
+  .range-val{font-size:15px;font-weight:800;color:var(--accent)}
+  .ticks{display:flex;justify-content:space-between;font-size:11.5px;color:var(--faint);margin-top:-2px}
+
+  /* ── 输出路径 ────────────────────────────────────────────── */
+  .path-card{border:1px solid var(--line);border-radius:var(--radius);padding:16px;background:#fcfcfd}
+  .path-head{font-size:12px;font-weight:700;color:var(--muted)}
+  .path-sub{font-size:12px;color:var(--faint)}
+  .path-flex{display:flex;gap:12px;align-items:flex-end;margin-top:12px;flex-wrap:wrap}
+  .path-flex .field{flex:1 1 100%;min-width:0}
+  .path-flex .btn{flex:0 0 auto;height:44px}
+
+  .actions{display:flex;gap:12px;align-items:center;margin-top:22px;flex-wrap:wrap}
+
+  /* ── 队列 / 设置 两栏，中间可拖动 ─────────────────────────── */
+  .qsplit{display:grid;grid-template-columns:var(--qL,52%) 18px minmax(0,1fr);align-items:start}
+  .qcol{min-width:0}
+  .gutter{position:sticky;top:16px;align-self:start;height:min(72vh,760px);min-height:160px;cursor:col-resize}
+  .gutter::before{content:'';position:absolute;top:2px;bottom:2px;left:50%;width:1px;background:var(--line);transition:background .15s,width .15s}
+  .gutter span{
+    position:absolute;top:96px;left:50%;transform:translate(-50%,0);
+    background:#fff;border:1px solid var(--line);border-radius:20px;
+    padding:4px 7px;font-size:11px;line-height:1;color:var(--faint);letter-spacing:.5px;
+    transition:border-color .15s,color .15s;
+  }
+  .gutter:hover::before,.gutter.on::before{background:var(--accent);width:2px;left:calc(50% - .5px)}
+  .gutter:hover span,.gutter.on span{border-color:var(--accent);color:var(--accent)}
+  .rail-foot{margin-top:26px;font-size:11.5px;color:var(--faint);line-height:1.6}
+
+  /* ── 运行区 ──────────────────────────────────────────────── */
+  .split{display:grid;grid-template-columns:1.12fr .88fr;gap:20px;align-items:start}
+  .box{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:#fff}
+  .box-h{display:flex;align-items:center;justify-content:space-between;padding:12px 15px;border-bottom:1px solid var(--line-soft);background:#fcfcfd}
+  .box-h b{font-size:14px}
+  .box-b{padding:14px 15px;max-height:420px;overflow-y:auto}
+  .task{border:1px solid var(--line);border-radius:12px;padding:13px;margin-bottom:11px}
+  .task:last-child{margin-bottom:0}
+  .task-h{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .task-t{font-size:14.5px;font-weight:800}
+  .task-s{font-size:12px;color:var(--faint);margin-top:2px}
+  .badge{font-size:12px;font-weight:800;padding:3px 10px;border-radius:999px}
+  .badge.queued{background:#f4f4f5;color:var(--muted)}
+  .badge.running{background:var(--accent-soft);color:var(--accent)}
+  .badge.done{background:var(--ok-soft);color:var(--ok)}
+  .badge.failed{background:var(--bad-soft);color:var(--bad)}
+  .task-bar{height:7px;border-radius:4px;background:#ececef;overflow:hidden;margin-top:11px}
+  .task-bar > i{display:block;height:100%;background:var(--accent);transition:width .4s ease}
+  .task-bar.failed > i{background:var(--bad)}
+  .task-bar.done > i{background:var(--ok)}
+  .task-meta{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);margin-top:7px;gap:10px}
+  .task-res{margin-top:9px;border-top:1px dashed var(--line);padding-top:9px}
+  .row{display:flex;align-items:center;gap:9px;font-size:13px;padding:4px 0}
+  .row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+  .dot.ok{background:#22c55e}.dot.bad{background:#ef4444}
+  .mini{border:1px solid var(--line);background:#fff;border-radius:8px;padding:3px 9px;font-size:12px;font-weight:700;color:var(--ink-2)}
+  .mini:hover{border-color:var(--accent);color:var(--accent)}
+
+  .log{
+    margin:0;padding:14px 15px;background:#0f1115;color:#d6dae2;font-size:13px;line-height:1.75;
+    font-family:Consolas,"Cascadia Mono","JetBrains Mono",monospace;min-height:180px;max-height:420px;
+    overflow:auto;white-space:pre-wrap;word-break:break-all;
+  }
+  .log::-webkit-scrollbar{width:10px}
+  .log::-webkit-scrollbar-thumb{background:#33363d;border-radius:6px}
+
+  /* ── 表格 ────────────────────────────────────────────────── */
+  table{width:100%;border-collapse:collapse}
+  th{
+    text-align:left;font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--faint);
+    text-transform:uppercase;padding:11px 12px;border-bottom:1px solid var(--line);background:#fcfcfd;
+  }
+  td{padding:12px;border-bottom:1px solid var(--line-soft);font-size:13.5px;vertical-align:middle}
+  tbody tr:hover{background:#fcfcfd}
+  .tbl-wrap{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .tbl-inner{max-height:520px;overflow:auto}
+  .tname{font-weight:700;word-break:break-all}
+  .muted{color:var(--faint)}
+  .nowrap{white-space:nowrap}
+
+  .toast{
+    position:fixed;right:24px;bottom:24px;z-index:50;display:flex;flex-direction:column;gap:9px;
+  }
+  .toast div{
+    background:#111114;color:#fff;font-size:13.5px;font-weight:600;padding:11px 16px;
+    border-radius:11px;box-shadow:0 12px 30px -12px rgba(0,0,0,.5);max-width:420px;
+  }
+  .toast div.bad{background:#991b1b}
+  .toast div.good{background:#166534}
+  input[type=file]{display:none}
+  code{background:#f4f4f5;border-radius:5px;padding:1px 6px;font-size:12.5px}
+
+  /* ── 任务控制 ────────────────────────────────────────────── */
+  .task-act{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .step{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+  .step button{border:none;background:#fff;width:30px;height:30px;font-size:16px;font-weight:800;color:var(--ink-2);line-height:1}
+  .step button:hover:not(:disabled){background:var(--accent-soft);color:var(--accent)}
+  .step button:disabled{color:#d4d4d8;cursor:not-allowed}
+  .step span{padding:0 10px;font-size:13px;font-weight:800;line-height:30px;border-left:1px solid var(--line-soft);border-right:1px solid var(--line-soft)}
+  .btn.sm{padding:6px 12px;font-size:12.5px;border-radius:9px}
+  .btn.warn{border-color:#fde68a;background:var(--warn-soft);color:var(--warn)}
+  .btn.danger{border-color:#fecaca;background:var(--bad-soft);color:var(--bad)}
+  .ctl-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:11px;padding-top:11px;border-top:1px dashed var(--line)}
+  .ctl-lb{font-size:12.5px;color:var(--muted);font-weight:700}
+
+  /* ── 文档行 ──────────────────────────────────────────────── */
+  .docs{margin-top:11px;border:1px solid var(--line-soft);border-radius:11px;overflow:hidden}
+  .doc{display:flex;align-items:center;gap:10px;padding:9px 12px;background:#fff;border-bottom:1px solid var(--line-soft)}
+  .doc:last-child{border-bottom:none}
+  .doc .nm{flex:1;min-width:0;font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mini-bar{width:86px;height:5px;border-radius:3px;background:#ececef;overflow:hidden;flex:0 0 auto}
+  .mini-bar > i{display:block;height:100%;background:var(--accent);transition:width .3s}
+  .mini-bar.done > i{background:var(--ok)}
+  .mini-bar.failed > i{background:var(--bad)}
+  .doc .pctxt{font-size:12px;color:var(--muted);min-width:78px;text-align:right;flex:0 0 auto}
+  .doc .pctxt.resumable{color:var(--accent);font-weight:700}
+  .badge.sm{font-size:11px;padding:2px 8px}
+  .badge.paused{background:var(--warn-soft);color:var(--warn)}
+  .badge.stopped,.badge.pending{background:#f4f4f5;color:var(--ink-2)}
+  .badge.cancelled{background:#f4f4f5;color:var(--faint)}
+  .badge.resumed{background:var(--accent-soft);color:var(--accent)}
+
+  /* ── 断点续传勾选框 ──────────────────────────────────────── */
+  .chk{display:flex;align-items:flex-start;gap:9px;margin-top:14px;
+    padding:11px 13px;border:1px solid var(--line-soft);border-radius:11px;
+    background:#fcfcfd;cursor:pointer;font-size:13px;font-weight:700;color:var(--ink-2)}
+  .chk:hover{border-color:var(--line)}
+  .chk input{width:16px;height:16px;margin-top:1px;accent-color:var(--accent);flex:0 0 auto}
+  .chk .muted{font-weight:500;line-height:1.55}
+
+  /* ── 角色映射 ────────────────────────────────────────────── */
+  .roles{margin-top:11px;border:1px solid var(--line-soft);border-radius:11px;padding:11px 12px;background:#fcfcfd}
+  .roles-h{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12.5px;font-weight:800;color:var(--ink-2)}
+  .role-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));gap:9px;margin-top:10px}
+  .role{display:flex;align-items:center;gap:7px}
+  .role .rn{font-size:12.5px;font-weight:800;flex:0 0 auto;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .role select{flex:1 1 auto;min-width:0;padding:6px 8px;font-size:12.5px;border-radius:9px}
+  .role .del{font-size:14px}
+
+  @media (max-width:1120px){
+    .shell{grid-template-columns:1fr}
+    .rail{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line)}
+    .grid3,.split,.grid2{grid-template-columns:1fr}
+    .card{padding:24px 20px 28px}
+    .main{padding:20px 16px 34px}
+    h1{font-size:29px}
+  }
+  @media (max-width:980px){
+    .qsplit{grid-template-columns:1fr}
+    .gutter{display:none}
+    .rail-foot{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <!-- ══ 左侧栏 ══ -->
+  <aside class="rail">
+    <div class="brand">
+      <div class="mark">CV</div>
+      <div>
+        <div class="brand-name">CosyVoice <em>3.0</em></div>
+      </div>
+    </div>
+    <div class="brand-sub">LOCAL AUDIO STUDIO</div>
+    <div class="brand-sub2">本地长音频制作</div>
+
+    <div class="rail-label">System Status</div>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-k">CPU处理器</div>
+        <div class="stat-v" id="cpuVal">—</div>
+        <div class="stat-m" id="cpuMeta">读取中</div>
+        <div class="bar"><i id="cpuBar" style="width:0"></i></div>
+      </div>
+      <div class="stat">
+        <div class="stat-k">RAM系统内存</div>
+        <div class="stat-v" id="memVal">—</div>
+        <div class="stat-m" id="memMeta">读取中</div>
+        <div class="bar"><i id="memBar" style="width:0"></i></div>
+      </div>
+      <div class="stat">
+        <div class="stat-k">GPU图形处理器</div>
+        <div class="stat-v" id="gpuVal">—</div>
+        <div class="stat-m" id="gpuMeta">读取中</div>
+        <div class="bar"><i id="gpuBar" style="width:0"></i></div>
+      </div>
+      <div class="stat">
+        <div class="stat-k">VRAM显存</div>
+        <div class="stat-v" id="vramVal">—</div>
+        <div class="stat-m" id="vramMeta">读取中</div>
+        <div class="bar"><i id="vramBar" style="width:0"></i></div>
+      </div>
+    </div>
+
+    <div class="rail-foot">所有文件、模型与任务都留在本机</div>
+  </aside>
+
+  <!-- ══ 主工作区 ══ -->
+  <main class="main">
+    <div class="wrap">
+      <div class="card">
+        <div class="hero">
+          <div>
+            <div class="eyebrow">NOVEL AUDIO WORKSPACE</div>
+            <h1>把文字，变成一段完整的声音。</h1>
+            <p class="lede">从小说文本到合并 MP3，所有素材和任务都留在本地。支持批量排队、多音色档案与逐段进度。</p>
+          </div>
+          <div class="ready-pill" id="readyPill">
+            <span class="k">OFFLINE</span>
+            <span class="v" id="readyVal">连接中</span>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <button class="tab on" data-tab="work">创作工作台</button>
+          <button class="tab" data-tab="assets">声音资产库</button>
+          <button class="tab" data-tab="history">任务历史</button>
+        </div>
+
+        <!-- ── 创作工作台 ── -->
+        <section class="panel on" id="panel-work">
+          <!-- 左：批量朗读队列　右：运行中 + 转换设置　中间可拖动 -->
+          <div class="qsplit" id="qsplit">
+          <div class="qcol">
+          <div class="sec">
+            <div class="sec-head">
+              <div>
+                <div class="sec-title">批量朗读队列</div>
+                <div class="sec-desc">可一次导入多个 TXT / Markdown / 电子书。任务开始后仍可 <b>追加/移除文档</b>、<b>调整并行数</b>（上限 2）、<b>暂停、继续或停止</b>；停止会保留已生成部分的 MP3。</div>
+              </div>
+              <button class="btn ghost" id="pickBtn">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                小说文件
+              </button>
+            </div>
+            <input type="file" id="fileInput" multiple accept=".txt,.text,.md,.markdown,.pdf,.epub,.mobi,.azw3,.azw,.prc,.docx,text/plain,application/pdf,application/epub+zip">
+            <input type="file" id="addDocInput" multiple accept=".txt,.text,.md,.markdown,.pdf,.epub,.mobi,.azw3,.azw,.prc,.docx,text/plain,application/pdf,application/epub+zip">
+            <div class="drop" id="drop" style="margin-top:14px">
+              <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v13"/></svg>
+              <div class="drop-t">将文件拖放到此处</div>
+              <div class="drop-or">— 或 —</div>
+              <div class="drop-btn">点击上传</div>
+              <div class="drop-s">支持 .txt / .md / <b>PDF / EPUB / MOBI / AZW3 / DOCX</b> 电子书，可多选；文件不会离开这台电脑</div>
+            </div>
+            <div id="fileList"></div>
+          </div>
+
+          <div class="sec">
+            <div class="path-card">
+              <div class="path-head">成果输出位置 <span class="path-sub">· 每次批量任务将在此创建独立文件夹；成品会按上面设定的时长自动切成一集一个 MP3</span></div>
+              <div class="path-flex">
+                <div class="field">
+                  <label for="outDir">输出路径</label>
+                  <input type="text" id="outDir" placeholder="留空则使用默认 outputs 目录">
+                </div>
+                <button class="btn" id="pickDirBtn">选择输出文件夹</button>
+                <button class="btn" id="applyDirBtn">应用路径</button>
+                <button class="btn ghost" id="openDirBtn">打开目录</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="btn primary lg" id="startBtn">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              开始转换
+            </button>
+            <button class="btn" id="clearFilesBtn">清空列表</button>
+            <span class="muted" id="queueInfo" style="font-size:13px"></span>
+          </div>
+          </div><!-- /qcol 左 -->
+
+          <div class="gutter" id="gutter" title="按住左右拖动，调整两栏宽度；双击复位"><span>⟨⟩</span></div>
+
+          <div class="qcol">
+            <div class="sec">
+              <div class="sec-title" style="margin-bottom:12px">运行中</div>
+              <div id="runBox"><div class="empty">当前没有运行中的任务</div></div>
+            </div>
+
+            <div class="sec">
+              <div class="sec-title" style="margin-bottom:14px">转换设置</div>
+              <div class="field">
+                <label for="spkSel">音色档案</label>
+                <select id="spkSel"></select>
+                <div class="hint">在「声音资产库」里可新建音色</div>
+              </div>
+              <div class="field" style="margin-top:14px">
+                <div class="range-head">
+                  <label for="speed">语速</label>
+                  <span class="range-val" id="speedVal">1.00x</span>
+                </div>
+                <input type="range" id="speed" min="0.7" max="1.5" step="0.05" value="1">
+                <div class="ticks"><span>0.7 慢</span><span>1.0 原速</span><span>1.5 快</span></div>
+              </div>
+              <div class="field" style="margin-top:14px">
+                <label for="workers">并行实例数</label>
+                <select id="workers"></select>
+                <div class="hint" id="workersHint">2 = 两篇文档同时跑；只剩一篇时这篇自动按段并发，吃满两个实例</div>
+              </div>
+              <label class="chk" for="resumeChk">
+                <input type="checkbox" id="resumeChk" checked>
+                <span>断点续传
+                  <span class="muted">· 中途停止或关掉页面，下次拖入同一文件只补没合成的段落；
+                    换过音色／语速／文本就会从头重跑。</span>
+                </span>
+              </label>
+              <div class="field" style="margin-top:14px">
+                <label for="episodeSel">成品分集</label>
+                <select id="episodeSel">
+                  <option value="60" selected>每集约 1 小时（推荐）</option>
+                  <option value="30">每集约 30 分钟</option>
+                  <option value="90">每集约 90 分钟</option>
+                  <option value="0">不分集，保留一个完整文件</option>
+                </select>
+                <div class="hint">长书合成一整块会大到没法用；分集切在句子之间的真静音处，
+                  听不出断口，每集允许 55–72 分钟浮动。</div>
+              </div>
+            </div>
+
+            <div class="sec">
+              <div class="sec-head">
+                <div class="sec-title">音色试听</div>
+                <span class="muted" style="font-size:12.5px">点 ▶ 试听参考音频</span>
+              </div>
+              <div id="voiceBox" style="margin-top:10px"><div class="empty">读取中…</div></div>
+            </div>
+          </div><!-- /qcol 右 -->
+          </div><!-- /qsplit -->
+
+          <div class="sec" style="margin-top:30px">
+            <div class="split">
+              <div class="box">
+                <div class="box-h"><b>任务队列</b><span class="muted" style="font-size:12.5px" id="taskCount"></span></div>
+                <div class="box-b" id="taskBox"><div class="empty">还没有任务。选好文件点「开始转换」。</div></div>
+              </div>
+              <div class="box">
+                <div class="box-h"><b>运行日志</b><button class="btn ghost" id="clearLogBtn" style="padding:5px 12px;font-size:12.5px">清空</button></div>
+                <pre class="log" id="logBox">等待服务端日志…</pre>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── 声音资产库 ── -->
+        <section class="panel" id="panel-assets">
+          <div class="sec">
+            <div class="sec-title">已有音色</div>
+            <div class="sec-desc">音色档案由一段参考音频 + 与音频逐字对应的文字稿组成。选中后会用于新的转换任务。</div>
+            <div id="assetList" class="grid2" style="margin-top:16px"></div>
+          </div>
+          <div class="sec" style="margin-top:30px">
+            <div class="sec-title" style="margin-bottom:14px">新建音色档案</div>
+            <div class="grid2">
+              <div class="field">
+                <label for="pName">档案名称</label>
+                <input type="text" id="pName" placeholder="例如：周报 / narrator（中文、字母、数字、_ -）">
+              </div>
+              <div class="field">
+                <label for="pWav">参考音频（wav / mp3）</label>
+                <input type="file" id="pWav" accept="audio/*" style="display:block;border:1px solid var(--line);border-radius:11px;padding:9px 12px;width:100%;background:#fff">
+                <div class="hint">建议 5~20 秒、干净无背景音。最长 30 秒：更长的会自动按停顿裁到 30 秒内，并把文字稿对齐到裁完的那一段</div>
+              </div>
+            </div>
+            <div class="field" style="margin-top:18px">
+              <label for="pTxt">逐字文字稿（必须与音频完全一致）</label>
+              <textarea id="pTxt" placeholder="把参考音频里说的每一个字原样写在这里，标点可以省略"></textarea>
+            </div>
+            <div class="actions">
+              <button class="btn primary" id="createProfileBtn">保存并注册音色</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── 任务历史 ── -->
+        <section class="panel" id="panel-history">
+          <div class="sec">
+            <div class="sec-head">
+              <div>
+                <div class="sec-title">任务历史</div>
+                <div class="sec-desc">每份文档的生成结果都会记录在此，可直接试听或打开所在文件夹。</div>
+              </div>
+              <button class="btn ghost" id="refreshHistoryBtn">刷新</button>
+            </div>
+          </div>
+          <div class="tbl-wrap" style="margin-top:18px">
+            <div class="tbl-inner">
+              <table>
+                <thead><tr>
+                  <th style="width:36%">文件</th><th>音色</th><th>状态</th>
+                  <th class="nowrap">时长</th><th class="nowrap">完成时间</th><th class="nowrap">操作</th>
+                </tr></thead>
+                <tbody id="historyBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+const state = {
+  files: [], voices: [], spk: '', speed: 1.0, workers: 2, outDir: '',
+  tasks: [], tab: 'work', loggedLen: -1
+};
+
+/* ── 工具 ─────────────────────────────────────────────────── */
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function toast(msg, kind){
+  const d = document.createElement('div');
+  d.className = kind || '';
+  d.textContent = msg;
+  $('toast').appendChild(d);
+  setTimeout(() => d.remove(), kind === 'bad' ? 7000 : 4000);
+}
+async function api(url, opts){
+  const r = await fetch(url, opts);
+  const t = await r.text();
+  try { return JSON.parse(t); } catch(e){ throw new Error('服务端返回了非 JSON 内容：' + t.slice(0, 160)); }
+}
+function secs(n){
+  n = Math.max(0, Math.round(n || 0));
+  const h = Math.floor(n/3600), m = Math.floor(n%3600/60), s = n%60;
+  const p = x => String(x).padStart(2,'0');
+  return h ? `${p(h)}:${p(m)}:${p(s)}` : `${p(m)}:${p(s)}`;
+}
+function clock(ts){
+  if (!ts) return '—';
+  const d = new Date(ts*1000), p = x => String(x).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function pct(v){ return (v === null || v === undefined) ? null : Math.max(0, Math.min(100, Math.round(v))); }
+
+/* ── 状态与监控 ───────────────────────────────────────────── */
+async function loadStatus(){
+  try{
+    const s = await api('/api/status');
+    const pill = $('readyPill'), v = $('readyVal');
+    pill.className = 'ready-pill';
+    if (s.status === 'ready'){ v.textContent = 'Ready'; }
+    else if (s.status === 'error'){ v.textContent = '出错'; pill.classList.add('bad'); }
+    else { v.textContent = '加载中'; pill.classList.add('load'); }
+  }catch(e){
+    $('readyPill').className = 'ready-pill bad';
+    $('readyVal').textContent = '离线';
+  }
+}
+
+function paint(el, val, bar, meta, metaTxt){
+  if (val === null){ el.textContent = 'N/A'; if(bar) bar.style.width = '0'; }
+  else { el.textContent = val + '%'; if(bar) bar.style.width = val + '%'; }
+  if (meta !== undefined) meta.textContent = metaTxt;
+}
+
+async function loadMonitor(){
+  try{
+    const m = await api('/api/monitor');
+    const cpu = pct(m.cpu);
+    paint($('cpuVal'), cpu, $('cpuBar'), $('cpuMeta'),
+          cpu === null ? 'psutil 不可用' : (navigator.hardwareConcurrency || '?') + ' 线程');
+
+    const memUsed = m.mem_used, memTotal = m.mem_total;
+    const memPct = (memUsed != null && memTotal) ? Math.round(memUsed/memTotal*100) : null;
+    paint($('memVal'), memPct, $('memBar'), $('memMeta'),
+          (memUsed != null && memTotal) ? `${memUsed} / ${memTotal} GB` : '读取不到内存信息');
+
+    const gpu = pct(m.gpu);
+    paint($('gpuVal'), gpu, $('gpuBar'), $('gpuMeta'),
+          m.gpu_name ? (m.gpu_name + (m.gpu_temp != null ? ` · ${m.gpu_temp}°C` : ''))
+                     : 'nvidia-smi 不可用');
+
+    const vramUsed = m.vram_used, vramTotal = m.vram_total;
+    const vramPct = (vramUsed != null && vramTotal) ? Math.round(vramUsed/vramTotal*100) : null;
+    paint($('vramVal'), vramPct, $('vramBar'), $('vramMeta'),
+          (vramUsed != null && vramTotal) ? `${vramUsed} / ${vramTotal} GB` : '读取不到显存信息');
+  }catch(e){ /* 服务端暂时不可达时保留上一次读数 */ }
+}
+
+/* ── 音色 ─────────────────────────────────────────────────── */
+async function loadVoices(){
+  try{
+    const list = await api('/api/voices');
+    state.voices = Array.isArray(list) ? list : [];
+    if (!state.spk || !state.voices.includes(state.spk)) state.spk = state.voices[0] || '';
+    renderVoices();
+    renderSpkSelect();
+    renderAssets();
+  }catch(e){ $('voiceBox').innerHTML = '<div class="empty">读取音色失败</div>'; }
+}
+
+function renderVoices(){
+  const box = $('voiceBox');
+  if (!state.voices.length){ box.innerHTML = '<div class="empty">还没有音色档案</div>'; return; }
+  box.innerHTML = state.voices.map(n => `
+    <div class="voice ${n === state.spk ? 'on' : ''}" data-spk="${esc(n)}" role="button" tabindex="0" title="点击选用「${esc(n)}」">
+      <span class="avatar">${esc(n.slice(0,1))}</span>
+      <span class="voice-name">${esc(n)}</span>
+      <button class="play" data-aud="${esc(n)}" title="试听这个音色的参考音频">▶</button>
+      <span class="tick">✓</span>
+    </div>`).join('');
+  box.querySelectorAll('.voice').forEach(b => {
+    const pick = () => { state.spk = b.dataset.spk; renderVoices(); renderSpkSelect(); renderAssets(); };
+    b.onclick = pick;
+    b.onkeydown = e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); pick(); } };
+  });
+  box.querySelectorAll('[data-aud]').forEach(b => b.onclick = e => {
+    e.stopPropagation(); audition(b.dataset.aud, b);
+  });
+}
+
+function renderSpkSelect(){
+  const sel = $('spkSel');
+  sel.innerHTML = state.voices.length
+    ? state.voices.map(n => `<option value="${esc(n)}" ${n === state.spk ? 'selected' : ''}>${esc(n)}</option>`).join('')
+    : '<option value="">（还没有音色，请先到「声音资产库」新建）</option>';
+  sel.onchange = () => { state.spk = sel.value; renderVoices(); renderAssets(); };
+}
+
+function renderAssets(){
+  const box = $('assetList');
+  if (!state.voices.length){
+    box.innerHTML = '<div class="empty">还没有音色档案，用下面的表单新建一个。</div>';
+    return;
+  }
+  box.innerHTML = state.voices.map(n => `
+    <div class="voice ${n === state.spk ? 'on' : ''}" style="cursor:default">
+      <span class="avatar">${esc(n.slice(0,1))}</span>
+      <span class="voice-name">${esc(n)}</span>
+      <button class="play" data-aud="${esc(n)}" title="试听参考音频（不占用显卡）">▶</button>
+      ${n === state.spk ? '<span class="chip">当前使用</span>'
+        : `<button class="mini" data-use="${esc(n)}">设为当前</button>`}
+      <button class="del" data-del="${esc(n)}" title="删除档案">✕</button>
+    </div>`).join('');
+  box.querySelectorAll('[data-aud]').forEach(b => b.onclick = () => audition(b.dataset.aud, b));
+  box.querySelectorAll('[data-use]').forEach(b => b.onclick = () => {
+    state.spk = b.dataset.use; renderVoices(); renderSpkSelect(); renderAssets();
+  });
+  box.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteProfile(b.dataset.del));
+}
+
+/* 读本地音频时长：只取 metadata，不下载、不解码整段 */
+function audioDuration(file){
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file), a = new Audio();
+    a.preload = 'metadata';
+    const done = d => { URL.revokeObjectURL(url); resolve(d || 0); };
+    a.onloadedmetadata = () => done(a.duration);
+    a.onerror = () => done(0);
+    a.src = url;
+  });
+}
+
+async function createProfile(){
+  const name = $('pName').value.trim();
+  const txt = $('pTxt').value.trim();
+  const f = $('pWav').files[0];
+  if (!name) return toast('请填写档案名称', 'bad');
+  if (!f) return toast('请选择参考音频文件', 'bad');
+  if (!txt) return toast('逐字文字稿不能为空', 'bad');
+  const fd = new FormData();
+  fd.append('name', name); fd.append('txt', txt); fd.append('wav', f);
+  const dur = await audioDuration(f);
+  toast(dur > 30
+    ? `参考音频 ${dur.toFixed(0)} 秒，超过 30 秒上限：正在按停顿裁剪并对齐文字稿，可能要等一会儿…`
+    : '正在注册音色…');
+  try{
+    const r = await api('/api/profile/create', {method:'POST', body: fd});
+    if (r.ok){
+      toast(`音色「${name}」已保存（参考音频 ${r.seconds}s）`, 'good');
+      if (r.note) toast(r.note, 'good');
+      $('pName').value = ''; $('pTxt').value = ''; $('pWav').value = '';
+      state.spk = name;
+      await loadVoices();
+    } else {
+      toast(r.error || '保存失败', 'bad');
+    }
+  }catch(e){ toast('保存失败：' + e.message, 'bad'); }
+}
+
+async function deleteProfile(name){
+  if (!confirm(`删除音色档案「${name}」？`)) return;
+  const fd = new FormData();
+  fd.append('name', name);
+  try{
+    const r = await api('/api/profile/delete', {method:'POST', body: fd});
+    if (r.ok){ toast(`已删除「${name}」`, 'good'); if (state.spk === name) state.spk = ''; await loadVoices(); }
+    else toast(r.error || '删除失败', 'bad');
+  }catch(e){ toast('删除失败：' + e.message, 'bad'); }
+}
+
+/* ── 试听：直接播放该音色的参考音频（秒开，不占显卡）─────────── */
+let audEl = null, audBtn = null;
+function audition(name, btn){
+  const stop = () => {
+    if (audEl){ try{ audEl.pause(); }catch(e){} audEl = null; }
+    if (audBtn){ audBtn.textContent = '▶'; audBtn = null; }
+  };
+  if (audBtn && audBtn === btn){ stop(); return; }   // 再点一次＝停止
+  stop();
+  audEl = new Audio('/api/audition/' + encodeURIComponent(name));
+  audBtn = btn;
+  audEl.onended = stop;
+  audEl.onerror = () => { toast(`音色「${name}」的参考音频读不出来`, 'bad'); stop(); };
+  audEl.play().then(() => { if (btn) btn.textContent = '❚❚'; })
+              .catch(() => { toast('浏览器拒绝了播放，请再点一次', 'bad'); stop(); });
+}
+
+/* ── 文件 ─────────────────────────────────────────────────── */
+/* 可提交的文档：纯文本 + 服务端能提取文字的电子书 */
+const DOC_RE = /\.(txt|text|md|markdown|pdf|epub|mobi|azw3|azw|prc|docx)$/i;
+const EBOOK_RE = /\.(pdf|epub|mobi|azw3|azw|prc|docx)$/i;
+/* .doc/.rtf 是二进制老格式，服务端不支持：先在本地拦下，给一句能照做的提示 */
+const LEGACY_RE = /\.(doc|rtf|wps|odt|fb2|lit)$/i;
+const FORMAT_HINT = '支持 .txt / .md / PDF / EPUB / MOBI / AZW3 / DOCX';
+
+function docFormat(name){
+  const m = String(name || '').toLowerCase().match(/\.([a-z0-9]+)$/);
+  const ext = m ? m[1] : '';
+  if (ext === 'markdown') return 'MD';
+  if (ext === 'mobi' || ext === 'azw' || ext === 'prc') return 'MOBI';
+  return (ext || 'TXT').toUpperCase();
+}
+
+/* 把服务端返回的逐文件提取失败摊开给用户看，而不是静默丢掉 */
+function showDocErrors(errors){
+  if (!Array.isArray(errors) || !errors.length) return 0;
+  errors.slice(0, 4).forEach(e => toast(`${e.name}：${e.error}`, 'bad'));
+  if (errors.length > 4) toast(`另有 ${errors.length - 4} 个文件提取失败`, 'bad');
+  return errors.length;
+}
+
+function addFiles(list){
+  let added = 0, skipped = 0, legacy = 0;
+  for (const f of list){
+    if (LEGACY_RE.test(f.name)){ legacy++; continue; }
+    if (!DOC_RE.test(f.name)){ skipped++; continue; }
+    if (state.files.some(x => x.name === f.name && x.size === f.size)) continue;
+    state.files.push(f); added++;
+  }
+  renderFiles();
+  if (legacy) toast(`${legacy} 个 .doc/.rtf 老格式暂不支持：请用 Word 另存为 .docx 再拖进来`, 'bad');
+  if (added) toast(`已加入 ${added} 个文件${skipped ? `，跳过 ${skipped} 个不支持的类型` : ''}`, 'good');
+  else if (skipped && !legacy) toast(FORMAT_HINT, 'bad');
+}
+
+function renderFiles(){
+  const box = $('fileList');
+  if (!state.files.length){
+    box.innerHTML = '<div class="filelist"><div class="filerow"><span class="nm muted">尚未添加文件 · 可一次选择多个 TXT / Markdown / PDF / EPUB / MOBI / AZW3 / DOCX</span></div></div>';
+    $('queueInfo').textContent = '';
+    return;
+  }
+  box.innerHTML = '<div class="filelist">' + state.files.map((f, i) => `
+    <div class="filerow">
+      <span class="nm">${esc(f.name)}</span>
+      <span class="chip ${/\.(md|markdown)$/i.test(f.name) ? 'md' : ''}">${docFormat(f.name)}</span>
+      <span class="chip">${(f.size/1024).toFixed(1)} KB</span>
+      <button class="mini" data-rm="${i}">移除</button>
+    </div>`).join('') + '</div>';
+  box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => {
+    state.files.splice(+b.dataset.rm, 1); renderFiles();
+  });
+  const books = state.files.filter(f => EBOOK_RE.test(f.name)).length;
+  $('queueInfo').textContent = `共 ${state.files.length} 个文件待转换`
+    + (books ? `（其中 ${books} 本电子书会在开始时自动提取成文字）` : '');
+}
+
+/* ── 转换 ─────────────────────────────────────────────────── */
+async function startConvert(){
+  if (!state.files.length) return toast('请先添加要朗读的文档', 'bad');
+  if (!state.spk) return toast('请先选择一个音色档案', 'bad');
+  const books = state.files.filter(f => EBOOK_RE.test(f.name)).length;
+
+  const fd = new FormData();
+  state.files.forEach(f => fd.append('files', f, f.name));
+  fd.append('spk_name', state.spk);
+  fd.append('speed', String(state.speed));
+  fd.append('workers', String(state.workers));
+  fd.append('out_dir', state.outDir || '');
+  fd.append('resume', $('resumeChk') && $('resumeChk').checked ? '1' : '0');
+  fd.append('episode', $('episodeSel') ? $('episodeSel').value : '60');
+
+  $('startBtn').disabled = true;
+  toast(books
+    ? `已提交 ${state.files.length} 个文件，正在提取 ${books} 本电子书的文字…`
+    : `已提交 ${state.files.length} 个文件，开始转换…`);
+  try{
+    const r = await api('/api/convert', {method:'POST', body: fd});
+    if (r.status === 'started'){
+      const bad = showDocErrors(r.errors);
+      const n = state.files.length - bad;
+      toast(`任务 ${r.task_id.slice(0,6)} 已开始 · ${n} 个文档`
+            + (books ? '（电子书已提取成文字）' : ''), 'good');
+      state.files = []; renderFiles();
+      setTab('work');
+      loadTasks();
+    } else {
+      toast(r.status || '提交失败', 'bad');
+    }
+  }catch(e){ toast('提交失败：' + e.message, 'bad'); }
+  $('startBtn').disabled = false;
+}
+
+/* ── 任务 ─────────────────────────────────────────────────── */
+const STATUS_TXT = {
+  queued:'排队中', pending:'排队中', running:'进行中', paused:'已暂停',
+  done:'已完成', failed:'失败', stopped:'已停止', cancelled:'已取消'
+};
+const LIVE_TASK = ['running','paused','queued'];
+
+async function loadTasks(){
+  try{
+    const list = await api('/api/tasks');
+    state.tasks = Array.isArray(list) ? list : [];
+    if (!busyInTaskBox()) renderTasks();     // 正在改下拉框时别把它刷掉
+    renderRunBox();
+  }catch(e){ /* 忽略瞬时失败 */ }
+}
+
+function busyInTaskBox(){
+  const a = document.activeElement;
+  return !!(a && a.tagName === 'SELECT' && a.closest && a.closest('#taskBox'));
+}
+
+function taskFailedReason(t){
+  if (t.error) return t.error;
+  const bad = (t.docs || []).filter(d => d.status === 'failed');
+  return bad.length ? (bad[0].error || '合成失败') : '';
+}
+
+function renderTasks(){
+  const box = $('taskBox');
+  if (!state.tasks.length){
+    box.innerHTML = '<div class="empty">还没有任务。选好文件点「开始转换」。</div>';
+    $('taskCount').textContent = '';
+    return;
+  }
+  $('taskCount').textContent = `共 ${state.tasks.length} 个`;
+  box.innerHTML = state.tasks.slice().reverse().map(taskCard).join('');
+  bindTaskCards(box);
+}
+
+/* 一份文档一行：进度条 + 段落数 + 状态 + 该文档能做的操作 */
+function docRow(t, d){
+  const dst = d.status || 'pending';
+  const dp = Math.max(0, Math.min(100, Math.round(d.progress || 0)));
+  const bar = dst === 'done' ? 100 : dp;
+  const busy = dst === 'running' || dst === 'pending';
+  // 停止/失败之后，磁盘上还留着已合成的段，就能接着跑
+  const resumable = !!d.resumable && !busy && dst !== 'done';
+  const stored = d.units_done || 0;
+  let right;
+  if (dst === 'running') right = `${d.units_done}/${d.units_total} 段 · ${dp}%`;
+  else if (dst === 'done') right = d.duration ? `${d.duration} 秒` : '已完成';
+  else if (dst === 'pending') right = d.units_total
+    ? (stored ? `已存 ${stored}/${d.units_total} 段` : `共 ${d.units_total} 段`) : '待扫描';
+  else if (dst === 'failed') right = '失败';
+  else right = d.units_total ? `已存 ${stored}/${d.units_total} 段` : '已中断';
+
+  const btns = [];
+  if (resumable)
+    btns.push(`<button class="mini go" data-resume="${esc(d.doc_id)}" data-tid="${esc(t.id)}" data-on="1">⏵ 接着跑</button>`);
+  if (dst === 'failed' || dst === 'cancelled' || (dst === 'stopped' && !resumable))
+    btns.push(`<button class="mini" data-resume="${esc(d.doc_id)}" data-tid="${esc(t.id)}" data-on="0" title="丢掉已有段落，从头重跑">重跑</button>`);
+  if (dst === 'pending')
+    btns.push(`<button class="mini" data-detect="${esc(d.doc_id)}" data-tid="${esc(t.id)}">识别角色</button>`);
+  if (dst === 'done' && d.mp3){
+    const eps = d.episodes || [];
+    btns.push(`<button class="mini" data-docplay="${esc(d.mp3)}">${eps.length > 1 ? '试听第1集' : '试听'}</button>`);
+    btns.push(`<button class="mini" data-file="${esc(d.mp3)}">打开</button>`);
+    if (eps.length > 1)
+      btns.push(`<button class="mini" data-episodes="${esc(eps.join('|'))}" title="${esc(eps.join('\n'))}">共 ${eps.length} 集</button>`);
+  }
+  // 上次中断留下的半成品，直接能听，不用等全部跑完
+  if (d.partial && dst !== 'done')
+    btns.push(`<button class="mini" data-docplay="${esc(d.partial)}" title="${esc(d.partial)}">半成品</button>`);
+  if (busy)
+    btns.push(`<button class="mini" data-rmdoc="${esc(d.doc_id)}" data-tid="${esc(t.id)}">移除</button>`);
+
+  return `<div class="doc">
+    <span class="nm" title="${esc(d.name)}">${esc(d.name)}</span>
+    ${d.roles_mode ? '<span class="chip md">多角色</span>' : ''}
+    ${d.resumed ? '<span class="badge sm resumed">已续传</span>' : ''}
+    ${d.partial ? `<span class="chip" title="${esc(d.partial)}">有半成品</span>` : ''}
+    <div class="mini-bar ${dst === 'done' ? 'done' : (dst === 'failed' ? 'failed' : '')}"><i style="width:${bar}%"></i></div>
+    <span class="pctxt ${resumable ? 'resumable' : ''}">${right}</span>
+    <span class="badge sm ${dst}">${STATUS_TXT[dst] || dst}</span>
+    ${btns.join('')}
+  </div>`;
+}
+
+/* 一张任务卡：总进度 + 实时控制（暂停/停止/并发/追加文档）+ 文档列表 + 角色映射 */
+function taskCard(t){
+  const st = t.status || 'queued';
+  const p = Math.max(0, Math.min(100, Math.round(t.progress || 0)));
+  const tt = t.totals || {};
+  const docs = t.docs || [];
+  const live = LIVE_TASK.includes(st) && st !== 'queued';
+  const running = docs.filter(d => d.status === 'running').length;
+  const wmax = t.workers_max || 2;
+  const w = t.workers || 1;
+  const roleKeys = Object.keys(t.roles || {});
+  const showRoles = roleKeys.length > 0 || docs.some(d => d.roles_mode);
+  const reason = taskFailedReason(t);
+  const dur = t.elapsed != null ? secs(t.elapsed) : '—';
+
+  const ctl = live ? `
+    <div class="ctl-row">
+      <span class="ctl-lb">并行实例数</span>
+      <span class="step">
+        <button data-wk="-1" data-tid="${esc(t.id)}" ${w <= 1 ? 'disabled' : ''} title="减到 ${Math.max(1, w-1)}">−</button>
+        <span>${w}</span>
+        <button data-wk="1" data-tid="${esc(t.id)}" ${w >= wmax ? 'disabled' : ''} title="加到 ${Math.min(wmax, w+1)}">＋</button>
+      </span>
+      <span class="muted" style="font-size:12px">在跑 ${running} · 上限 ${wmax}</span>
+      <span style="flex:1"></span>
+      ${st === 'paused'
+        ? `<button class="btn sm" data-act="resume" data-tid="${esc(t.id)}">▶ 继续</button>`
+        : `<button class="btn sm warn" data-act="pause" data-tid="${esc(t.id)}">⏸ 暂停</button>`}
+      <button class="btn sm danger" data-act="stop" data-tid="${esc(t.id)}">■ 停止</button>
+      <button class="btn sm" data-adddoc="${esc(t.id)}">＋ 追加文档</button>
+    </div>` : `
+    <div class="ctl-row">
+      <span class="muted" style="font-size:12px">已结束${t.finished ? ' · ' + clock(t.finished) : ''}${
+        tt.docs_done != null ? ` · 完成 ${tt.docs_done}/${tt.docs || 0} 篇` : ''}</span>
+    </div>`;
+
+  const roleBox = showRoles ? `
+    <div class="roles">
+      <div class="roles-h">
+        <span>角色 → 音色映射 <span class="muted" style="font-weight:600">（改动对「还没合成的段落」立刻生效）</span></span>
+        <button class="mini" data-addrole="${esc(t.id)}">＋ 角色</button>
+      </div>
+      <div class="role-grid">
+        ${roleKeys.length ? roleKeys.map(r => `
+          <div class="role">
+            <span class="rn" title="${esc(r)}">${esc(r)}</span>
+            <span class="muted">→</span>
+            <select data-role="${esc(r)}" data-tid="${esc(t.id)}">
+              ${state.voices.map(v => `<option value="${esc(v)}" ${v === t.roles[r] ? 'selected' : ''}>${esc(v)}</option>`).join('')}
+            </select>
+            <button class="del" data-delrole="${esc(r)}" data-tid="${esc(t.id)}" title="删除这个角色的映射">✕</button>
+          </div>`).join('')
+          : '<span class="muted" style="font-size:12.5px">点文档上的「识别角色」，系统会自动把「XX说：…」「XX道：「…」」标成 [角色] 分段。</span>'}
+      </div>
+    </div>` : '';
+
+  return `
+  <div class="task">
+    <div class="task-h">
+      <div>
+        <div class="task-t">${esc(t.name || t.id)}</div>
+        <div class="task-s">${clock(t.created)} · ${tt.docs || 0} 个文档 · 音色 ${esc(t.spk_name || '—')} · 语速 ${t.speed}x · 并行 ${w}</div>
+      </div>
+      <span class="badge ${st}">${STATUS_TXT[st] || st}</span>
+    </div>
+    <div class="task-bar ${st}"><i style="width:${p}%"></i></div>
+    <div class="task-meta">
+      <span>${p}% · ${tt.units_done || 0} / ${tt.units || 0} 段 · ${esc(t.last_desc || '')}</span>
+      <span>用时 ${dur}</span>
+    </div>
+    ${reason ? `<div class="task-meta" style="color:var(--bad)">失败原因：${esc(reason)}</div>` : ''}
+    ${ctl}
+    ${docs.length ? `<div class="docs">${docs.map(d => docRow(t, d)).join('')}</div>` : ''}
+    ${roleBox}
+  </div>`;
+}
+
+function bindTaskCards(box){
+  box.querySelectorAll('[data-act]').forEach(b =>
+    b.onclick = () => taskAction(b.dataset.tid, b.dataset.act, b));
+  box.querySelectorAll('[data-wk]').forEach(b =>
+    b.onclick = () => bumpWorkers(b.dataset.tid, +b.dataset.wk, b));
+  box.querySelectorAll('[data-adddoc]').forEach(b =>
+    b.onclick = () => pickDocsFor(b.dataset.adddoc));
+  box.querySelectorAll('[data-rmdoc]').forEach(b =>
+    b.onclick = () => removeDoc(b.dataset.tid, b.dataset.rmdoc, b));
+  box.querySelectorAll('[data-resume]').forEach(b =>
+    b.onclick = () => resumeDoc(b.dataset.tid, b.dataset.resume, b.dataset.on === '1', b));
+  box.querySelectorAll('[data-detect]').forEach(b =>
+    b.onclick = () => detectRoles(b.dataset.tid, b.dataset.detect, b));
+  box.querySelectorAll('[data-role]').forEach(s =>
+    s.onchange = () => setRole(s.dataset.tid, s.dataset.role, s.value));
+  box.querySelectorAll('[data-delrole]').forEach(b =>
+    b.onclick = () => delRole(b.dataset.tid, b.dataset.delrole));
+  box.querySelectorAll('[data-addrole]').forEach(b =>
+    b.onclick = () => addRole(b.dataset.addrole));
+  box.querySelectorAll('[data-docplay]').forEach(b =>
+    b.onclick = () => playMp3(b.dataset.docplay, b));
+  box.querySelectorAll('[data-file]').forEach(b =>
+    b.onclick = () => openFile(b.dataset.file));
+  // 分集：点一下打开所在文件夹，挑哪一集都行
+  box.querySelectorAll('[data-episodes]').forEach(b =>
+    b.onclick = () => openDir(b.dataset.episodes.split('|')[0]));
+}
+
+/* ── 任务控制 ─────────────────────────────────────────────── */
+const postJSON = (url, data) => api(url, {
+  method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
+});
+
+async function taskAction(tid, action, btn){
+  if (action === 'stop' && !confirm('停止这个任务？\n已生成的段落会合并成半成品 MP3 保留下来。')) return;
+  const label = {pause:'已暂停', resume:'已继续', stop:'已停止'}[action] || '操作完成';
+  if (btn) btn.disabled = true;
+  try{
+    const r = await postJSON('/api/task/' + action, {task_id: tid});
+    if (r.ok){ toast(r.message || label, 'good'); await loadTasks(); }
+    else toast(r.error || '操作失败', 'bad');
+  }catch(e){ toast('操作失败：' + e.message, 'bad'); }
+  finally { if (btn) btn.disabled = false; }
+}
+
+async function bumpWorkers(tid, delta, btn){
+  const t = state.tasks.find(x => x.id === tid) || {};
+  const wmax = t.workers_max || 2;
+  const want = Math.max(1, Math.min(wmax, (t.workers || 1) + delta));
+  if (btn) btn.disabled = true;
+  try{
+    const r = await postJSON('/api/task/workers', {task_id: tid, workers: want});
+    if (r.ok){
+      toast(want > 1 ? `并行数 → ${want}（正在后台加载第 ${want} 份模型，首次约需 1 分钟）`
+                     : '并行数 → 1（空闲的模型实例会被回收）', 'good');
+      await loadTasks();
+    } else toast(r.error || '调整失败', 'bad');
+  }catch(e){ toast('调整失败：' + e.message, 'bad'); }
+  finally { if (btn) btn.disabled = false; }
+}
+
+let addDocTaskId = null;
+function pickDocsFor(tid){ addDocTaskId = tid; $('addDocInput').value = ''; $('addDocInput').click(); }
+
+async function uploadMoreDocs(files){
+  const tid = addDocTaskId;
+  addDocTaskId = null;
+  if (!tid || !files || !files.length) return;
+  const fd = new FormData();
+  fd.append('task_id', tid);
+  fd.append('resume', $('resumeChk') && $('resumeChk').checked ? '1' : '0');
+  for (const f of files) fd.append('files', f, f.name);
+  toast(`正在追加 ${files.length} 个文档…`);
+  try{
+    const r = await api('/api/task/doc/add', {method:'POST', body: fd});
+    if (r.ok){
+      showDocErrors(r.errors);
+      toast(`已追加 ${r.docs.length} 个文档，会排在队列末尾`, 'good');
+      await loadTasks();
+    } else {
+      showDocErrors(r.errors);
+      toast(r.error || '追加失败', 'bad');
+    }
+  }catch(e){ toast('追加失败：' + e.message, 'bad'); }
+}
+
+/* 接着跑 / 重跑：resume=1 只补没合成的段落，resume=0 从头来 */
+async function resumeDoc(tid, docId, resume, btn){
+  if (!resume && !confirm('从头重跑这篇文档？\n已经合成好的段落会被丢掉。')) return;
+  if (btn){ btn.disabled = true; btn.textContent = '排队中…'; }
+  try{
+    const r = await postJSON('/api/task/doc/resume', {task_id: tid, doc_id: docId, resume: !!resume});
+    if (r.ok){ toast(r.message || '已重新排队', 'good'); await loadTasks(); }
+    else toast(r.error || '操作失败', 'bad');
+  }catch(e){ toast('操作失败：' + e.message, 'bad'); }
+  finally { if (btn) btn.disabled = false; }
+}
+
+async function removeDoc(tid, docId, btn){
+  if (btn) btn.disabled = true;
+  try{
+    const r = await postJSON('/api/task/doc/remove', {task_id: tid, doc_id: docId});
+    if (r.ok){ toast(r.message || '已移除', 'good'); await loadTasks(); }
+    else toast(r.error || '移除失败', 'bad');
+  }catch(e){ toast('移除失败：' + e.message, 'bad'); }
+  finally { if (btn) btn.disabled = false; }
+}
+
+async function detectRoles(tid, docId, btn){
+  const old = btn ? btn.textContent : '';
+  if (btn){ btn.disabled = true; btn.textContent = '识别中…'; }
+  try{
+    const r = await postJSON('/api/roles/detect', {task_id: tid, doc_id: docId});
+    if (r.ok){
+      toast(r.roles && r.roles.length
+        ? `识别到 ${r.roles.length} 个角色：${r.roles.slice(0, 6).join('、')}${r.roles.length > 6 ? ' …' : ''}`
+        : '没找到「XX说：…」这类说话人标记，这篇会按旁白朗读', r.roles && r.roles.length ? 'good' : '');
+      await loadTasks();
+    } else toast(r.error || '识别失败', 'bad');
+  }catch(e){ toast('识别失败：' + e.message, 'bad'); }
+  finally { if (btn){ btn.disabled = false; btn.textContent = old || '识别角色'; } }
+}
+
+async function setRole(tid, role, spk){
+  try{
+    const r = await postJSON('/api/roles/set', {task_id: tid, role: role, spk: spk});
+    if (r.ok) toast(`「${role}」→ ${spk}`, 'good');
+    else toast(r.error || '设置失败', 'bad');
+  }catch(e){ toast('设置失败：' + e.message, 'bad'); }
+}
+
+async function delRole(tid, role){
+  try{
+    const r = await postJSON('/api/roles/delete', {task_id: tid, role: role});
+    if (r.ok){ toast(`已删除角色「${role}」，它会退回默认音色`, 'good'); await loadTasks(); }
+    else toast(r.error || '删除失败', 'bad');
+  }catch(e){ toast('删除失败：' + e.message, 'bad'); }
+}
+
+async function addRole(tid){
+  const role = (prompt('角色名（要和文本里的 [角色名] 完全一致）') || '').trim();
+  if (!role) return;
+  const spk = state.spk || state.voices[0] || '';
+  if (!spk) return toast('请先到「声音资产库」新建一个音色', 'bad');
+  await setRole(tid, role, spk);
+  await loadTasks();
+}
+
+async function openFile(p){
+  try{
+    const r = await api('/api/open_file?path=' + encodeURIComponent(p));
+    if (!r.ok) toast(r.error || '打开失败', 'bad');
+  }catch(e){ toast('打开失败：' + e.message, 'bad'); }
+}
+
+function renderRunBox(){
+  const active = state.tasks.filter(t => LIVE_TASK.includes(t.status));
+  const box = $('runBox');
+  if (!active.length){
+    box.innerHTML = '<div class="empty">当前没有运行中的任务</div>';
+    return;
+  }
+  const t = active[active.length - 1];
+  const p = Math.max(0, Math.min(100, Math.round(t.progress || 0)));
+  const tt = t.totals || {};
+  const cur = (t.docs || []).find(d => d.status === 'running') || (t.docs || [])[0] || {};
+  const elapsed = t.elapsed != null ? t.elapsed
+    : (Date.now()/1000) - (t.started || t.created || Date.now()/1000);
+  box.innerHTML = `
+    <div class="run-card">
+      <div class="run-top">
+        <span class="run-pct">${p}%</span>
+        <span class="badge sm ${t.status}">${STATUS_TXT[t.status] || t.status}</span>
+      </div>
+      <div class="run-file">${esc(cur.name || t.name || '')}</div>
+      <div class="run-meta">${esc(t.spk_name || '—')} · ${t.speed}x · 并行 ${t.workers} · ${esc(t.last_desc || '')}</div>
+      <div class="bar" style="margin-top:10px"><i style="width:${p}%"></i></div>
+      <div class="kv"><span class="muted">文档</span><b>${tt.docs_done || 0} / ${tt.docs || 0}</b></div>
+      <div class="kv"><span class="muted">段落</span><b>${tt.units_done || 0} / ${tt.units || 0}</b></div>
+      <div class="kv"><span class="muted">失败</span><b>${tt.failed || 0}</b></div>
+      <div class="kv"><span class="muted">已用时间</span><b>${secs(elapsed)}</b></div>
+    </div>`;
+}
+
+/* ── 日志 ─────────────────────────────────────────────────── */
+async function loadLog(){
+  try{
+    const r = await api('/api/log');
+    const txt = r.text || '';
+    if (txt.length !== state.loggedLen){
+      state.loggedLen = txt.length;
+      const box = $('logBox');
+      const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 24;
+      box.textContent = txt || '等待服务端日志…';
+      if (atBottom) box.scrollTop = box.scrollHeight;
+    }
+  }catch(e){}
+}
+
+/* ── 历史 ─────────────────────────────────────────────────── */
+async function loadHistory(){
+  try{
+    const list = await api('/api/history');
+    const rows = Array.isArray(list) ? list : [];
+    const body = $('historyBody');
+    if (!rows.length){
+      body.innerHTML = '<tr><td colspan="6" class="muted">暂无历史记录</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map(t => {
+      const st = STATUS_TXT[t.status] ? t.status : 'running';
+      const mp3 = t.mp3_path || '';
+      return `<tr>
+        <td class="tname">${esc(t.filename || '—')}</td>
+        <td>${esc(t.spk_id || '—')}</td>
+        <td><span class="badge ${st}">${STATUS_TXT[t.status] || esc(t.status || '')}</span></td>
+        <td class="nowrap">${t.duration ? Number(t.duration).toFixed(1) + ' 秒' : (st === 'failed' ? '—' : t.segments_done ? t.segments_done + ' 段' : '—')}</td>
+        <td class="nowrap muted">${clock(t.finished || t.created)}</td>
+        <td class="nowrap">
+          ${mp3 ? `<button class="mini" data-play="${esc(mp3)}">试听</button>` : ''}
+          ${mp3 ? `<button class="mini" data-dir="${esc(mp3)}">打开</button>` : ''}
+          ${t.error ? `<span class="muted" title="${esc(t.error)}">${esc(t.error)}</span>` : ''}
+        </td>
+      </tr>`;
+    }).join('');
+    body.querySelectorAll('[data-play]').forEach(b => b.onclick = () => playMp3(b.dataset.play, b));
+    body.querySelectorAll('[data-dir]').forEach(b => b.onclick = () => openDir(b.dataset.dir));
+  }catch(e){
+    $('historyBody').innerHTML = '<tr><td colspan="6" class="muted">读取历史失败</td></tr>';
+  }
+}
+
+let audioEl = null;
+function playMp3(p, btn){
+  const s = String(p);
+  // 成品/半成品 MP3 给的是绝对路径（输出目录可能在项目外），走后端转发；
+  // 历史记录里的旧数据可能是相对路径，仍旧按静态文件取。
+  const url = /^[A-Za-z]:[\\/]/.test(s) || s.startsWith('\\\\')
+    ? '/api/audio?path=' + encodeURIComponent(s)
+    : '/' + s.replace(/\\/g, '/').replace(/^\/+/, '');
+  if (audioEl){ audioEl.pause(); audioEl = null; document.querySelectorAll('[data-play]').forEach(x => x.textContent = '试听'); }
+  audioEl = new Audio(url);
+  audioEl.onended = () => { if (btn) btn.textContent = '试听'; audioEl = null; };
+  audioEl.onerror = () => { toast('这个音频读不出来（可能还没生成完）', 'bad'); if (btn) btn.textContent = '试听'; };
+  audioEl.play().then(() => { if (btn) btn.textContent = '停止'; }).catch(() => toast('浏览器拒绝了播放，请再点一次', 'bad'));
+  if (btn) btn.onclick = () => { if (audioEl){ audioEl.pause(); audioEl = null; } btn.textContent = '试听'; };
+}
+
+/* ── 路径 ─────────────────────────────────────────────────── */
+async function pickDir(){
+  try{
+    const r = await api('/api/pick_dir?initial=' + encodeURIComponent(state.outDir || ''));
+    if (r.ok && r.path){ $('outDir').value = r.path; toast('已选择：' + r.path, 'good'); }
+    else if (r.error) toast(r.error, 'bad');
+  }catch(e){ toast('打开文件夹选择框失败：' + e.message, 'bad'); }
+}
+async function applyDir(){
+  const p = $('outDir').value.trim();
+  try{
+    const r = await api('/api/set_out_dir?path=' + encodeURIComponent(p));
+    if (r.ok){ state.outDir = r.path; toast('输出目录已设为 ' + r.path, 'good'); }
+    else toast(r.error || '设置失败', 'bad');
+  }catch(e){ toast('设置失败：' + e.message, 'bad'); }
+}
+async function openDir(p){
+  const q = p ? ('?path=' + encodeURIComponent(p)) : '';
+  try{
+    const r = await api('/api/open_dir' + q);
+    if (!r.ok) toast(r.error || '打开目录失败', 'bad');
+  }catch(e){ toast('打开目录失败：' + e.message, 'bad'); }
+}
+
+/* ── 标签页 ───────────────────────────────────────────────── */
+function setTab(name){
+  if (!['work','assets','history'].includes(name)) name = 'work';
+  state.tab = name;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('on', p.id === 'panel-' + name));
+  try{ history.replaceState(null, '', '#' + name); }catch(e){}
+  if (name === 'history') loadHistory();
+  if (name === 'assets') renderAssets();
+}
+
+/* ── 初始化 ───────────────────────────────────────────────── */
+function workersHint(){
+  const n = Number($('workers').value) || 1;
+  $('workersHint').textContent = n > 1
+    ? `最多 ${n} 个模型实例：多篇文档时按篇分（一篇一个），只剩一篇时这篇自动按段并发。约占 ${n} 倍显存。`
+    : '只用 1 个模型实例，文档一篇一篇跑，只占一份显存。任务开始后还能随时加。';
+}
+
+async function loadSettings(){
+  try{
+    const s = await api('/api/settings');
+    state.outDir = s.out_dir || '';
+    $('outDir').value = state.outDir;
+    $('outDir').placeholder = '留空则使用默认目录 ' + (s.default_out_dir || 'outputs');
+    if (s.spk_name && !state.spk) state.spk = s.spk_name;
+    const sp = Number(s.speed || 1);
+    $('speed').min = s.speed_min; $('speed').max = s.speed_max;
+    $('speed').value = sp; state.speed = sp; $('speedVal').textContent = sp.toFixed(2) + 'x';
+    const w = $('workers');
+    const maxW = Math.max(1, Math.min(2, s.workers_max || 2));   // 硬锁上限 2
+    w.innerHTML = Array.from({length: maxW}, (_, i) => {
+      const n = i + 1;
+      return `<option value="${n}" ${n === Number(s.workers || 1) ? 'selected' : ''}>${n}${n === 1 ? '（一次一篇，最省显存）' : '（同时跑两篇文档）'}</option>`;
+    }).join('');
+    state.workers = Number(w.value);
+    workersHint();
+    if ($('resumeChk')) $('resumeChk').checked = s.resume !== false;
+    if ($('episodeSel') && s.episode_seconds !== undefined){
+      const want = String(Math.round(Number(s.episode_seconds || 0) / 60));
+      if ([...$('episodeSel').options].some(o => o.value === want)) $('episodeSel').value = want;
+    }
+  }catch(e){}
+}
+
+function bind(){
+  document.querySelectorAll('.tab').forEach(t => t.onclick = () => setTab(t.dataset.tab));
+
+  const drop = $('drop'), input = $('fileInput');
+  $('pickBtn').onclick = () => input.click();
+  drop.onclick = () => input.click();
+  input.onchange = () => { addFiles(input.files); input.value = ''; };
+  $('addDocInput').onchange = () => { uploadMoreDocs($('addDocInput').files); $('addDocInput').value = ''; };
+
+  ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => {
+    e.preventDefault(); e.stopPropagation(); drop.classList.add('over');
+  }));
+  ['dragleave','dragend'].forEach(ev => drop.addEventListener(ev, e => {
+    e.preventDefault(); e.stopPropagation(); drop.classList.remove('over');
+  }));
+  drop.addEventListener('drop', e => {
+    e.preventDefault(); e.stopPropagation(); drop.classList.remove('over');
+    if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files);
+  });
+  window.addEventListener('dragover', e => e.preventDefault());
+  window.addEventListener('drop', e => e.preventDefault());
+
+  $('speed').oninput = () => {
+    state.speed = Number($('speed').value);
+    $('speedVal').textContent = state.speed.toFixed(2) + 'x';
+  };
+  $('workers').onchange = () => {
+    state.workers = Number($('workers').value);
+    workersHint();
+  };
+  $('startBtn').onclick = startConvert;
+  $('clearFilesBtn').onclick = () => { state.files = []; renderFiles(); };
+  $('pickDirBtn').onclick = pickDir;
+  $('applyDirBtn').onclick = applyDir;
+  $('openDirBtn').onclick = () => openDir(state.outDir);
+  $('clearLogBtn').onclick = async () => { await api('/api/log/clear'); state.loggedLen = -1; loadLog(); };
+  $('createProfileBtn').onclick = createProfile;
+  $('refreshHistoryBtn').onclick = loadHistory;
+}
+
+function tick(){
+  if (document.hidden) return;
+  loadStatus(); loadMonitor(); loadTasks(); loadLog();
+  if (state.tab === 'history') loadHistory();
+}
+
+/* ── 两栏拖拽：按住中间的 ⟨⟩ 左右拖，双击复位 ─────────────── */
+function initSplitter(){
+  const box = $('qsplit'), gut = $('gutter');
+  if (!box || !gut) return;
+  const KEY = 'cv.qsplit', MIN = 32, MAX = 72;
+  const apply = q => {
+    q = Math.max(MIN, Math.min(MAX, q));
+    box.style.setProperty('--qL', q.toFixed(2) + '%');
+    return q;
+  };
+  const saved = parseFloat(localStorage.getItem(KEY) || '');
+  if (saved > 0) apply(saved);
+
+  let on = false, moved = 0;
+  const xOf = e => (e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX);
+  const move = e => {
+    if (!on) return;
+    const r = box.getBoundingClientRect();
+    if (!r.width) return;
+    moved = apply(((xOf(e) - r.left) / r.width) * 100);
+    e.preventDefault();
+  };
+  const end = () => {
+    if (!on) return;
+    on = false;
+    gut.classList.remove('on');
+    document.body.style.userSelect = '';
+    if (moved) localStorage.setItem(KEY, moved.toFixed(2));
+  };
+  const start = e => {
+    on = true;
+    gut.classList.add('on');
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  };
+  gut.addEventListener('mousedown', start);
+  gut.addEventListener('touchstart', start, { passive: false });
+  window.addEventListener('mousemove', move);
+  window.addEventListener('touchmove', move, { passive: false });
+  window.addEventListener('mouseup', end);
+  window.addEventListener('touchend', end);
+  gut.addEventListener('dblclick', () => {
+    box.style.removeProperty('--qL');
+    localStorage.removeItem(KEY);
+    moved = 0;
+  });
+}
+
+(async function init(){
+  bind();
+  initSplitter();
+  setTab((location.hash || '').replace('#', ''));   // 刷新后停在同一标签页
+  await loadSettings();
+  await loadVoices();
+  renderFiles();
+  loadStatus(); loadMonitor(); loadTasks(); loadLog(); loadHistory();
+  setInterval(tick, 2000);
+})();
+</script>
+</body>
+</html>
