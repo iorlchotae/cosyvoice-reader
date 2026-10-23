@@ -9,6 +9,9 @@ import json
 import re
 from pathlib import Path
 
+import pronounce
+import zh_rules
+
 CHUNK_CHARS = 1000
 CHUNK_MIN_CHARS = 200
 
@@ -117,7 +120,10 @@ def load_text(path, is_markdown: bool = None) -> str:
     text = clean_text(read_text(p))
     if is_markdown:
         text = strip_markdown(text)
-    return tts_safe(text)          # 最后一道：拆掉会让 wetext 崩掉的写法
+    text = tts_safe(text)                    # 拆掉会让 wetext 崩掉的写法
+    text = zh_rules.normalize(text)          # 中文数字/量词/货币/单位改写
+    text = pronounce.apply(text, pronounce.lexicon_for(p))  # 发音词典
+    return text
 
 
 # TTS 清洗 -------------------------------------------------------------

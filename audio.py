@@ -13,9 +13,12 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-from config import get_ffmpeg
+from config import SAMPLE_RATE, get_ffmpeg
 
 BITRATE = '192k'
+# 响度归一化（借鉴 folivox）：每篇合并成 MP3 时统一到 -18 LUFS，
+# 换音色/换书音量一致；分集是 -c copy 切这份已归一的 MP3，不再重编码。
+LOUDNORM = 'loudnorm=I=-18:TP=-1.5:LRA=11'
 
 
 def _ffprobe() -> str:
@@ -140,6 +143,7 @@ def merge_wavs_to_mp3(wav_paths, mp3_path, expect_seconds=None,
 
     if len(wav_paths) == 1:
         _run([get_ffmpeg(), '-y', '-i', wav_paths[0],
+              '-af', LOUDNORM, '-ar', str(SAMPLE_RATE),
               '-c:a', 'libmp3lame', '-b:a', BITRATE, str(mp3_path)])
     else:
         with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False,
@@ -151,7 +155,8 @@ def merge_wavs_to_mp3(wav_paths, mp3_path, expect_seconds=None,
             list_file = f.name
         try:
             _run([get_ffmpeg(), '-y', '-f', 'concat', '-safe', '0',
-                  '-i', list_file, '-c:a', 'libmp3lame', '-b:a', BITRATE,
+                  '-i', list_file, '-af', LOUDNORM, '-ar', str(SAMPLE_RATE),
+                  '-c:a', 'libmp3lame', '-b:a', BITRATE,
                   str(mp3_path)])
         finally:
             try:
