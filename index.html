@@ -646,9 +646,16 @@ async function loadStatus(){
     const s = await api('/api/status');
     const pill = $('readyPill'), v = $('readyVal');
     pill.className = 'ready-pill';
-    if (s.status === 'ready'){ v.textContent = 'Ready'; }
-    else if (s.status === 'error'){ v.textContent = '出错'; pill.classList.add('bad'); }
-    else { v.textContent = '加载中'; pill.classList.add('load'); }
+    if (s.status === 'ready'){ v.textContent = 'Ready'; pill.title = ''; }
+    else if (s.status === 'downloading'){
+      v.textContent = s.progress ? '下载 ' + s.progress + '%' : '下载中';
+      pill.classList.add('load');
+      pill.title = s.detail || '正在下载模型权重';
+    }
+    else if (s.status === 'error'){
+      v.textContent = '出错'; pill.classList.add('bad'); pill.title = s.error || '';
+    }
+    else { v.textContent = '加载中'; pill.classList.add('load'); pill.title = ''; }
   }catch(e){
     $('readyPill').className = 'ready-pill bad';
     $('readyVal').textContent = '离线';

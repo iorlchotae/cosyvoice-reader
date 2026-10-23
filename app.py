@@ -28,6 +28,7 @@ import audio as audio_mod
 import document as doc_mod
 import ebook_import as ebook
 import episode
+import model_setup
 import task_store as store
 import voice_profiles as vp
 from backends.pool import get_pool
@@ -42,7 +43,7 @@ from runtime_monitor import snapshot, format_snapshot
 LOG = []
 _LOG_LOCK = threading.Lock()
 SETTINGS_FILE = PROJECT_ROOT / "settings.json"
-backend_state = {"status": "loading", "error": ""}
+backend_state = {"status": "loading", "error": "", "detail": "", "progress": 0}
 
 # 多任务队列：task_id -> task_info
 _active_tasks = {}
@@ -489,6 +490,10 @@ def _dispatch(task) -> None:
         while True:
             if backend_state['status'] == 'error':
                 raise RuntimeError(f'模型加载失败：{backend_state["error"]}')
+            if backend_state['status'] == 'downloading':
+                task['last_desc'] = '等待模型下载完成…'
+            if backend_state['status'] in ('loading', 'downloading'):
+                time.sleep(2)      # 模型还没就绪：等它，不报错（下载完自动继续）
             if task['ctl'].cancel.is_set():
                 task['status'] = 'stopped'
                 break
@@ -813,34 +818,47 @@ def _pick_directory(initial: str = '') -> str:
 
 
 # ─── 模型预加载 --------------------------------------------------------------
-def _missing_setup() -> str:
-    """检查"上游源码 + 模型权重"是否就位。返回中文提示，空串表示都就位。
+def _missing_cosyvoice_source() -> str:
+    """检查上游 CosyVoice 源码是否就位。返回中文提示，空串表示就位。
 
-    这两个东西都不进 Git 仓库（模型 10.3 GB，CosyVoice 是上游仓库），
-    所以新人第一次跑最常见的失败就是"目录是空的"，这里提前给出可照抄的命令，
-    而不是让 torch 抛一长串 FileNotFoundError。
+    源码是 git 仓库（含子模块与补丁），不适合自动下载，保持人工指引。
     """
     if not COSYVOICE_DIR.exists():
         return (f'未找到 CosyVoice 源码目录：{COSYVOICE_DIR}　'
                 '请先运行 scripts\\setup_windows.ps1，或手动执行 '
                 'git clone --recursive https://github.com/FunAudioLLM/CosyVoice.git')
-    if not (MODEL_DIR / 'cosyvoice3.yaml').exists():
-        return (f'未找到模型权重：{MODEL_DIR}　'
-                '请运行 .venv\\Scripts\\python.exe scripts\\download_model.py '
-                '（约 10 GB），或设置环境变量 COSYVOICE_MODEL_DIR 指向已有的模型目录。')
     return ''
 
 
+def _dl_hook(detail: str, done: int, total: int) -> None:
+    """下载进度 → 状态接口 + 日志（不刷屏，只在变化时更新状态）。"""
+    backend_state['detail'] = detail
+    try:
+        backend_state['progress'] = min(100, round(done / total * 100)) if total else 0
+    except (TypeError, ZeroDivisionError):
+        backend_state['progress'] = 0
+
+
 def _preload_backend():
-    """后台加载第一个后端实例，让"系统状态"尽早变成 Ready。"""
+    """后台就绪：缺模型先自动下载，然后加载第一个后端实例。"""
     global backend_state
     try:
-        problem = _missing_setup()
+        problem = _missing_cosyvoice_source()
         if problem:
             backend_state['status'] = 'error'
             backend_state['error'] = problem
             log(problem)
             return
+        missing = model_setup.missing_files(MODEL_DIR)
+        if missing:
+            backend_state['status'] = 'downloading'
+            backend_state['detail'] = ''
+            backend_state['progress'] = 0
+            log(f'未找到模型权重（缺 {len(missing)} 个文件），开始自动下载'
+                '（约 5.4 GB，国内走 ModelScope；支持断点续传，中断后重跑接着下）...')
+            log(f'缺失清单：{missing[:4]}{"…" if len(missing) > 4 else ""}')
+            model_setup.download_missing(MODEL_DIR, hook=_dl_hook)
+            log('模型下载完成，开始加载...')
         log('正在加载模型（首次启动约 60 秒）...')
         pool = get_pool()
         # 启动只备 1 个实例：够跑单篇，也不白占 6GB 显存。
@@ -900,7 +918,9 @@ class APIHandler(SimpleHTTPRequestHandler):
             self.send_json(monitor_payload())
         elif route == '/api/status':
             self.send_json({'status': backend_state['status'],
-                            'error': backend_state['error']})
+                            'error': backend_state['error'],
+                            'detail': backend_state.get('detail', ''),
+                            'progress': backend_state.get('progress', 0)})
         elif route == '/api/pool':
             self.send_json(get_pool().status())
         elif route.startswith('/api/audition/'):
