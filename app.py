@@ -1717,6 +1717,12 @@ def _setup_output(max_mb: int = 8) -> None:
 if __name__ == '__main__':
     _setup_output()
 
+    # 上次运行遗留的 queued/running 任务收尾成 stopped，否则重启后
+    # 这些任务在界面上凭空消失，历史里永远挂着“进行中”。
+    _left = store.reconcile_interrupted()
+    if _left:
+        print(f'已把上次中断的 {_left} 个任务标记为已停止（重新拖入同一文件可续传）')
+
     no_browser = os.environ.get('COSYVOICE_NO_BROWSER') == '1'
     url = f'http://{WEBUI_HOST}:{WEBUI_PORT}/'
 

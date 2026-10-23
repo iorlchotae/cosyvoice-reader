@@ -83,6 +83,10 @@
   .run-meta{font-size:12px;color:var(--muted);margin-top:2px}
   .kv{display:flex;justify-content:space-between;font-size:13px;margin-top:5px}
   .kv b{font-weight:800}
+  .run-cur{margin-top:7px;font-size:12px;color:var(--ink-2);background:var(--accent-soft);
+    border-radius:8px;padding:6px 9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .resume-hint{margin-top:9px;font-size:12.5px;color:var(--ink-2);background:var(--accent-soft);
+    border:1px dashed var(--accent);border-radius:10px;padding:9px 11px;line-height:1.55}
   .empty{font-size:12.5px;color:var(--faint);padding:6px 2px}
 
   /* ── 音色行 ──────────────────────────────────────────────── */
@@ -603,7 +607,7 @@ const $ = id => document.getElementById(id);
 
 const state = {
   files: [], voices: [], spk: '', speed: 1.0, workers: 2, outDir: '',
-  tasks: [], tab: 'work', loggedLen: -1
+  tasks: [], tab: 'work', loggedLen: -1, resumeHint: null
 };
 
 /* ── 工具 ─────────────────────────────────────────────────── */
@@ -1230,28 +1234,43 @@ function renderRunBox(){
   const active = state.tasks.filter(t => LIVE_TASK.includes(t.status));
   const box = $('runBox');
   if (!active.length){
-    box.innerHTML = '<div class="empty">当前没有运行中的任务</div>';
+    const hint = state.resumeHint;
+    box.innerHTML = hint
+      ? `<div class="empty">当前没有运行中的任务</div>`
+        + `<div class="resume-hint">⏸ 上次中断：<b>${esc(hint.name)}</b>`
+        + `（已完成 ${hint.done} 段）—— 重新拖入同一文件即可续传</div>`
+      : '<div class="empty">当前没有运行中的任务</div>';
     return;
   }
-  const t = active[active.length - 1];
+  box.innerHTML = active.map(runCardHTML).join('');
+}
+
+function runCardHTML(t){
   const p = Math.max(0, Math.min(100, Math.round(t.progress || 0)));
   const tt = t.totals || {};
   const cur = (t.docs || []).find(d => d.status === 'running') || (t.docs || [])[0] || {};
   const elapsed = t.elapsed != null ? t.elapsed
     : (Date.now()/1000) - (t.started || t.created || Date.now()/1000);
-  box.innerHTML = `
+  // 剩余时间按当前平均速率外推：已用 × 剩余% / 已完成%
+  let eta = '';
+  if (p > 0){
+    const remain = elapsed * (100 - p) / p;
+    eta = ` · 剩 ${secs(remain)}`;
+  }
+  return `
     <div class="run-card">
       <div class="run-top">
         <span class="run-pct">${p}%</span>
         <span class="badge sm ${t.status}">${STATUS_TXT[t.status] || t.status}</span>
       </div>
       <div class="run-file">${esc(cur.name || t.name || '')}</div>
-      <div class="run-meta">${esc(t.spk_name || '—')} · ${t.speed}x · 并行 ${t.workers} · ${esc(t.last_desc || '')}</div>
+      <div class="run-meta">${esc(t.spk_name || '—')} · ${t.speed}x · 并行 ${t.workers}</div>
+      ${t.last_desc ? `<div class="run-cur">▸ ${esc(t.last_desc)}</div>` : ''}
       <div class="bar" style="margin-top:10px"><i style="width:${p}%"></i></div>
       <div class="kv"><span class="muted">文档</span><b>${tt.docs_done || 0} / ${tt.docs || 0}</b></div>
       <div class="kv"><span class="muted">段落</span><b>${tt.units_done || 0} / ${tt.units || 0}</b></div>
       <div class="kv"><span class="muted">失败</span><b>${tt.failed || 0}</b></div>
-      <div class="kv"><span class="muted">已用时间</span><b>${secs(elapsed)}</b></div>
+      <div class="kv"><span class="muted">已用时间</span><b>${secs(elapsed)}${eta}</b></div>
     </div>`;
 }
 
@@ -1298,6 +1317,15 @@ async function loadHistory(){
     }).join('');
     body.querySelectorAll('[data-play]').forEach(b => b.onclick = () => playMp3(b.dataset.play, b));
     body.querySelectorAll('[data-dir]').forEach(b => b.onclick = () => openDir(b.dataset.dir));
+    // 给“运行中”板块提供续传提示：最近48小时内中断/失败且有进度的任务
+    const cutoff = Date.now()/1000 - 48*3600;
+    const cand = rows.find(r =>
+      (r.status === 'stopped' || r.status === 'failed')
+      && (r.segments_done || 0) > 0
+      && (r.finished || r.created || 0) >= cutoff);
+    state.resumeHint = cand
+      ? { name: cand.filename, done: cand.segments_done }
+      : null;
   }catch(e){
     $('historyBody').innerHTML = '<tr><td colspan="6" class="muted">读取历史失败</td></tr>';
   }
@@ -1430,8 +1458,7 @@ function bind(){
 
 function tick(){
   if (document.hidden) return;
-  loadStatus(); loadMonitor(); loadTasks(); loadLog();
-  if (state.tab === 'history') loadHistory();
+  loadStatus(); loadMonitor(); loadTasks(); loadLog(); loadHistory();
 }
 
 /* ── 两栏拖拽：按住中间的 ⟨⟩ 左右拖，双击复位 ─────────────── */

@@ -68,3 +68,29 @@ def list_tasks(limit: int = 20) -> list:
     files = sorted(TASKS_DIR.glob('*.json'),
                    key=lambda p: p.stat().st_mtime, reverse=True)[:limit]
     return [json.loads(p.read_text(encoding='utf-8')) for p in files]
+
+
+def reconcile_interrupted(
+    note: str = '应用重启，任务中断；重新拖入同一文件可续传',
+) -> int:
+    """启动时把上次遗留的 queued/running 任务标记为 stopped。
+
+    任务本体只活在内存里，重启后 _active_tasks 清空；若不在落盘记录上
+    收尾，这些任务在界面上会凭空消失（历史里永远显示“进行中”）。
+    返回改写的条数。
+    """
+    changed = 0
+    with _LOCK:
+        for p in TASKS_DIR.glob('*.json'):
+            try:
+                task = json.loads(p.read_text(encoding='utf-8'))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if task.get('status') in (STATUS_QUEUED, STATUS_RUNNING):
+                task['status'] = 'stopped'
+                task['error'] = task.get('error') or note
+                task['finished'] = time.time()
+                p.write_text(json.dumps(task, ensure_ascii=False, indent=2),
+                             encoding='utf-8')
+                changed += 1
+    return changed
